@@ -8,7 +8,7 @@
 
 $script_name = "teleirc"
 
-$options = { bot_nick: "`", prefix: "[TG]", enabled: "false"}
+$defaults = { bot_nick: "`", prefix: "[TG]", enabled: "false"}
 
 def weechat_init
   Weechat.register($script_name, "William Osler <{firstname}@{lastname}s.us>",
@@ -16,16 +16,14 @@ def weechat_init
                    "shutdown", "")
 
   # Initialize config
-  $options.each do |key, value|
-    if Weechat.config_is_set_plugin(key.to_s) then
-      $options[key] = Weechat.config_get_plugin(key.to_s)
-    else
+  $defaults.each do |key, value|
+    if !Weechat.config_is_set_plugin(key.to_s) then
       Weechat.config_set_plugin(key.to_s, value)
     end
   end
 
-  # Listen for config changes
-  Weechat.hook_config("plugins.var.ruby." + $script_name + ".*", "config_cb", "")
+  # Register a PRIVMSG modification callback
+  Weechat.hook_modifier("irc_in_privmsg", "modify_privmsg_cb", "")
 
   return Weechat::WEECHAT_RC_OK
 end
@@ -35,13 +33,44 @@ def shutdown
   return Weechat::WEECHAT_RC_OK
 end
 
-def config_cb(data, option, value)
-  # load options
-  $options.each_key do |key|
-    if Weechat.config_is_set_plugin(key.to_s) then
-      $options[key] = Weechat.config_get_plugin(key.to_s)
-    end
+# Begin actual functionality
+def modify_privmsg_cb(data, modifier, modifier_data, string)
+
+  if Weechat.config_get_plugin("bot_nick")
+    bot_nick = Weechat.config_get_plugin("bot_nick")
+  else
+    bot_nick = $defaults[:bot_nick]
   end
 
-  return Weechat::WEECHAT_RC_OK
+  if Weechat.config_get_plugin("prefix")
+    prefix = Weechat.config_get_plugin("prefix")
+  else
+    prefix = $defaults[:prefix]
+  end
+
+  # Check for the proper username
+  nick = string.split(" ")[0].split("!")[0][1..-1]
+
+  if nick == bot_nick
+    # Find location of message text (4th arg)
+    index = 0
+    3.times do
+      index = string.index(" ", index+1)
+    end
+    index += 2 # consume space and :
+    message = string[index..-1]
+
+    # Extract the Telegram name of the sender and remove it from the message
+    tgram_name = message.split(":")[0]
+    text = message[tgram_name.size+2..-1]
+    text.prepend(prefix + " ") unless prefix.empty?
+
+    # Replace command text with new text
+    string[index..-1] = text
+
+    # Substitute the bot name with the Telegram name
+    string.sub!(":#{bot_nick}", ":#{tgram_name}")
+  end
+
+  return string
 end

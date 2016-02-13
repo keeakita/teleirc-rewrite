@@ -15,4 +15,5 @@ make it look more like this:
 
 ## Status
 
-Nothing done yet, just took the base from my old WeeChat script.
+Mostly done? Needs to be bug tested. Feel free to give it a spin and open an
+issue if something breaks!
